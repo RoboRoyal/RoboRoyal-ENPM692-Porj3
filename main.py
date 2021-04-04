@@ -1,7 +1,9 @@
+
 #Dakota Abernathy
 #ENPM692-Porj2
 
 import math
+import random
 from queue import PriorityQueue
 import pygame
 import time
@@ -24,6 +26,13 @@ CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 YELLOW = (255, 255, 0)
 
+BOT_RADIUS = 10
+OBSTACLE_CLEARANCE = 5
+CLEARANCE = BOT_RADIUS + OBSTACLE_CLEARANCE
+THETA = 30
+DELTA = .5
+MAGNITUDE = 25
+THRESHOLD = 10
 nodes_visited = []
 path = []
 SQRT2 = math.sqrt(2)
@@ -33,23 +42,38 @@ nodes = None
 def distance(x1,y1,x2,y2):
     return math.sqrt(pow((x2-x1), 2)+pow((y2-y1), 2))
 
+def round_to_half(num):
+    decmal = num - int(num)
+    if decmal >= .75:
+        return int(num) + 1
+    elif decmal <= .25:
+        return int(num)
+    else:
+        return int(num) + .5
 
 # class to keep track of each place visited
 class Node:
-    def __init__(self, x, y, parent, dist=0):
+    def __init__(self, x, y, theta, end_x=0, end_y=0, parent=None):
         self.x = x
         self.y = y
+        self.end_x = end_x
+        self.end_y = end_y
         self.parent = parent
-        self.h = 0
+        self.theta = theta
         if parent:
-            self.path_length = parent.path_length + dist
+            self.path_length = parent.path_length + MAGNITUDE
             self.g = parent.g + 1
         else:
             self.path_length = 0
             self.g = 0
+        if target:
+            self.h = self.heuristic()
+        else:
+            self.h = 0
 
     def heuristic(self):  # a* heuristic
-        return distance(self.x, self.y, target.x, target.y) + self.g
+        #return distance(self.end_x, self.end_y, target.x, target.y) + self.g
+        return math.pow(target.x - self.end_x, 2) + math.pow(target.y - self.end_y, 2)
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
@@ -59,6 +83,36 @@ class Node:
 
     def __lt__(self, other):
         return self.path_length < other.path_length
+
+def draw_node(node, color = MAGENTA):
+    pygame.draw.line(board, color, [node.x * SCALE, (HEIGHT - node.y) * SCALE],
+                     [node.end_x* SCALE, (HEIGHT - node.end_y) * SCALE],SCALE)
+
+def get_neighbors_rigid(node):
+    neighbors = []
+    for i in range(-60, 61, THETA):
+        new_theta = node.theta + i
+        if new_theta < 0:
+            new_theta = new_theta + 360
+        else:
+            new_theta = new_theta % 360
+        new_x = round_to_half(node.end_x + MAGNITUDE * math.cos(math.radians(new_theta)))
+        new_y = round_to_half(node.end_y + MAGNITUDE * math.sin(math.radians(new_theta)))
+        if point_valid(new_x, new_y, False):
+            neighbors.append(Node(node.end_x, node.end_y, new_theta, new_x, new_y, node))
+    return neighbors
+
+
+def random_node():
+    point = random_point()
+    node = Node(point[0], point[1], 0, point[0], point[1])
+    new_nodes = get_neighbors_rigid(node)
+    random.shuffle(new_nodes)
+    if new_nodes:
+        return new_nodes[0]
+
+def draw_point_with_threshold(point, color = GREEN):
+    pygame.draw.circle(board, color, [point.x * SCALE, (HEIGHT - point.y) * SCALE], THRESHOLD * SCALE)
 
 # makes default board
 def make_board():
@@ -89,15 +143,15 @@ def make_board():
                          (230 * SCALE, (HEIGHT - 230) * SCALE), (200 * SCALE, (HEIGHT - 230) * SCALE)])
 
     # Polygon ---- whats the error allowed? lot of rounding and re-rounding
-    pygame.draw.polygon(board, BLACK,  # why is this so ugly
+    '''pygame.draw.polygon(board, BLACK,  # why is this so ugly
                         [(354 * SCALE, (HEIGHT - 138) * SCALE), (380 * SCALE, (HEIGHT - 170) * SCALE),
                          (380 * SCALE, (HEIGHT - 115) * SCALE), (328 * SCALE, (HEIGHT - 63) * SCALE),
-                         (286 * SCALE, (HEIGHT - 105) * SCALE), (325 * SCALE, (HEIGHT - 143) * SCALE)])
+                         (286 * SCALE, (HEIGHT - 105) * SCALE), (325 * SCALE, (HEIGHT - 143) * SCALE)])'''
 
 
 # check if point in circle
 def in_circle(x, y):
-    if math.pow(x - 90, 2) + math.pow(y - 70, 2) >= 1225:
+    if math.pow(x - 90, 2) + math.pow(y - 70, 2) >= math.pow(35 + CLEARANCE, 2):
         return False
     return True
 
@@ -106,8 +160,8 @@ def in_circle(x, y):
 def in_ellipse(x, y):
     center_x = 246
     center_y = 146
-    horizontal_axis = 60
-    vertical_axis = 30
+    horizontal_axis = 60 + CLEARANCE
+    vertical_axis = 30 + CLEARANCE
     if ((math.pow(x - center_x, 2) / math.pow(horizontal_axis, 2)) +
         (math.pow(y - center_y, 2) / math.pow(vertical_axis, 2))) <= 1:
         return True
@@ -116,26 +170,27 @@ def in_ellipse(x, y):
 
 # check if point in C-shape
 def in_c_shape(x, y):
-    if (x >= 200 and x <= 210 and y <= 280 and y >= 230) or \
-        (x >= 210 and x <= 230 and y >= 270 and y <= 280) or \
-        (y >= 230 and y <= 240 and x >= 210 and x <= 230):
+    if (x >= 200 - CLEARANCE and x <= 210 + CLEARANCE and y <= 280 + CLEARANCE and y >= 230- CLEARANCE) or \
+       (x >= 210 - CLEARANCE and x <= 230 + CLEARANCE and y >= 270- CLEARANCE and y <= 280 + CLEARANCE) or \
+       (y >= 230 - CLEARANCE and y <= 240 + CLEARANCE and x >= 210- CLEARANCE and x <= 230 + CLEARANCE):
         return True
     return False
 
 
 # check if point in weird polygon
 def in_poly(x, y):
-    if ((y - 1 * x + 181.6) < 0 and (y + 0.3 * x - 239.9) < 0 and (y + 249.2 * x - 95054.25) <
-        0 and (y - x + 265) > 0 and (y + 1 * x - 389.3) > 0) or \
-        ((y - 1.13 * x + 260.75) < 0 and (y + 249.2 * x - 95054.25) < 0 and (y + .3 * x - 240.6) > 0):
+    if ((y - 1 * x + 181.6 - CLEARANCE) < 0 and (y + 0.3 * x - 239.9 - CLEARANCE) < 0
+        and (y + 249.2 * x - 95054 - CLEARANCE) <0 and (y - x + 265 + CLEARANCE) > 0
+        and (y + x - 389.3 + CLEARANCE) > 0) or ((y - 1.13 * x + 260.75 - CLEARANCE) < 0
+        and(y + 249.2 * x - 95054 - CLEARANCE) < 0 and (y + .3 * x - 240.6 + CLEARANCE) > 0):
         return True
     return False
 
 
 # check if point in rotated rectangle
 def in_line_segment(x, y):
-    if (y + 1.4 * x - 176.5) > 0 and (y - 0.7 * x - 74.4) > 0 \
-        and (y - 0.7 * x - 98.8) < 0 and (y + 1.4 * x - 438.1) < 0:
+    if (y + 1.4 * x - 176.5 + CLEARANCE) > 0 and (y - 0.7 * x - 74.4 + CLEARANCE) > 0 \
+        and (y - 0.7 * x - 98.8 - CLEARANCE) < 0 and (y + 1.4 * x - 438.1 - CLEARANCE) < 0:
         return True
     return False
 
@@ -143,10 +198,12 @@ def in_line_segment(x, y):
 # # check if point is in any obstacle
 def in_obstacle(x, y):
     if in_circle(x, y) or in_ellipse(x, y) or in_c_shape(x, y) or \
-            in_line_segment(x, y) or in_poly(x, y):
+            in_line_segment(x, y): # or in_poly(x, y):
         return True
     return False
 
+def is_close(x, y, x_target, y_target):
+    return distance(x,y,x_target, y_target) <= THRESHOLD
 
 # check if point inside boundaries and not in any obstacle
 def point_valid(x, y, talk=True):
@@ -168,12 +225,16 @@ def point_valid(x, y, talk=True):
 # checks to ensure visual and mathematical models of obstacles match
 def sanity_check():
     for i in range(100000):
-        x = randint(0, 400)
+        node = random_node()
+        if node:
+            draw_node(node)
+        time.sleep(.5)
+        '''x = randint(0, 400)
         y = randint(0, 300)
         if point_valid(x, y):
             pygame.draw.circle(board, RED, [x * SCALE, (HEIGHT - y) * SCALE], 1 * SCALE)
         else:
-            pygame.draw.circle(board, GREEN, [x * SCALE, (HEIGHT - y) * SCALE], 1 * SCALE)
+            pygame.draw.circle(board, GREEN, [x * SCALE, (HEIGHT - y) * SCALE], 1 * SCALE)'''
         pygame.display.update()
 
 
@@ -205,7 +266,7 @@ def get_initial_conditions(human=True):
     else:
         x1, y1 = random_point()
         x2, y2 = random_point()
-    return Node(x1, y1, None), Node(x2, y2, None)
+    return Node(x1, y1, 0, x1, y1), Node(x2, y2, 0, x1, y1)
 
 
 # returns list of nodes of all valid neighbors
@@ -239,22 +300,25 @@ def BFS():
 
         if real_time:  # plot in real time
             itt = itt + 1
-            if itt % 50 == 0:
-                pygame.display.update()
-                pygame.event.get()
-            pygame.draw.rect(board, CYAN, [next_node.x * SCALE, (HEIGHT - next_node.y) * SCALE, 2 * SCALE, 2 * SCALE])
+            draw_node(next_node)
+            #if itt % 50 == 0:
+            pygame.display.update()
+            pygame.event.get()
+            time.sleep(.1)
 
-        if next_node == target:  # check if done
+        if is_close(next_node.end_x, next_node.end_y, target.x, target.y):  # check if done
             print("Found path")
             target.parent = next_node.parent
             return
 
-        new_nodes = get_neighbors(next_node)  # get neighbors
+        new_nodes = get_neighbors_rigid(next_node)  # get neighbors
+
         for new_node in new_nodes:
             # add them to list to check if they are new
             if str(new_node) not in explored and str(new_node) not in to_explore_check:
                 to_explore.put(new_node)
                 to_explore_check[str(new_node)] = True
+                print("adding")
     print("No path")
 
 
@@ -318,8 +382,8 @@ def back_track():
 
 # adds all visited nodes, the path, start and end points to board
 def add_points():
-    pygame.draw.circle(board, GREEN, [start.x * SCALE, (HEIGHT - start.y) * SCALE], 4 * SCALE)
-    pygame.draw.circle(board, MAGENTA, [target.x * SCALE, (HEIGHT - target.y) * SCALE], 4 * SCALE)
+    draw_point_with_threshold(start)
+    draw_point_with_threshold(target, RED)
     pygame.display.update()
     print("Visited: ", len(nodes_visited))
     clock = pygame.time.Clock()
@@ -346,28 +410,39 @@ def add_points():
     if path:
         print("Path length: ", path[1].path_length)
 
+def test_n():
+    node = random_node()
+    node.theta = 180
+    pygame.draw.circle(board, CYAN, [node.end_x * SCALE, (HEIGHT - node.end_y) * SCALE], 4 * SCALE)
+    nodes = get_neighbors_rigid(node)
+    for i in nodes:
+        draw_node(i)
+    pygame.display.update()
 
 if __name__ == "__main__":
     # mode = int(input("Choose 1 for a* or 2 for breath first search: "))
     mode = 2
-    start, target = get_initial_conditions(True)
+    start, target = get_initial_conditions(False)
     print("Finding path...")
-    real_time = False
+    real_time = True
 
     if real_time:
         make_board()
         add_points()
-
     if mode == 1:
         a_star()
-    else:
+    elif mode == 2:
         BFS()
+    elif mode == 0:
+        sanity_check()
 
-    make_board()
-    back_track()
-    add_points()
-    pygame.display.update()
-    print("Done")
+    if mode:
+        make_board()
+        back_track()
+        add_points()
+        pygame.display.update()
+        print("Done")
+
     for i in range(51):
         time.sleep(1)
         events = pygame.event.get()
