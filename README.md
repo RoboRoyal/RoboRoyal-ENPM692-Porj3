@@ -4,7 +4,7 @@ Project 3 Phase for ENPM692, Spring 2021
 
 This project implements A* for a rigid robot with limited mobility and static obstacles.
 The bot has a radius of 10 and a clearence of 5.
-The robot can move in 5 direction, -60, -30, 0, +30, and +60 degrees from its current orientation in a single descrete step size. 
+The robot can move in 5 directions, -60, -30, 0, +30, and +60 degrees from its current orientation in a single descrete step size. 
 
 For this project, pygame is used to visualise the graph, along with the nodes explored and the final path found.
 
