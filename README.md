@@ -11,7 +11,7 @@ For this project, pygame is used to visualise the graph, along with the nodes ex
 Pygame is the only library used that is not built in.
 
 To run:
-
+'''
 python3 main.py
 pygame 2.0.1 (SDL 2.0.14, Python 3.7.6)
 Hello from the pygame community. https://www.pygame.org/contribute.html
@@ -27,7 +27,7 @@ Visited:  350
 Path:  22
 Path length:  10
 Done
-
+'''
 The program will ask for what type of algorithm to use, followed by the start and target location. If you enter an invalid point, it will re-prompt you.
 
 In the shown map, white represents free space, black is for obstacles, cyan is explored nodes, and the final path is depicted in magenta.
