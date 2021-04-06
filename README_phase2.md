@@ -12,7 +12,7 @@ Pygame is the only library used that is not built in.
 
 To run:
 ```
-python3 main.py
+python3 Proj3_phase2.py.py
 pygame 2.0.1 (SDL 2.0.14, Python 3.7.6)
 Hello from the pygame community. https://www.pygame.org/contribute.html
 Enter the <X> <Y> coordinates of the start point: 1 2 
