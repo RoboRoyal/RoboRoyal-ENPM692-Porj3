@@ -2,7 +2,7 @@
 # Dakota Abernathy
 # Neha Saini
 # ENPM 661
-# Project3-phase1- Implementation of Dijkstra.
+# Project3-phase3
 
 
 import math
@@ -14,7 +14,7 @@ from random import randint
 
 HEIGHT = 300
 WIDTH = 400
-SCALE = 1
+SCALE = 2
 
 board = None
 start = None
@@ -32,22 +32,25 @@ YELLOW = (255, 255, 0)
 BOT_RADIUS = 10
 OBSTACLE_CLEARANCE = 5
 CLEARANCE = BOT_RADIUS + OBSTACLE_CLEARANCE
-THETA = 30
-DELTA = .5
-MAGNITUDE = 10
-THRESHOLD = 10
+THRESHOLD = 12
 nodes_visited = []
-actions = [25, 30]
+actions = [55, 57, 0]
 path = []
 SQRT2 = math.sqrt(2)
 nodes = None
 found_path = True
 
+r = 0.038
+L = 0.354
+dt = 0.1
+stop_time = 6
 
 # distance between two points
 def distance(x1, y1, x2, y2):
     return math.sqrt(pow((x2-x1), 2)+pow((y2-y1), 2))
 
+def round_to_n(num, n = 4):
+    return n * round(num / n)
 
 # round to nearest .5
 def round_to_half(num):
@@ -62,13 +65,14 @@ def round_to_half(num):
 
 # class to keep track of each place visited
 class Node:
-    def __init__(self, x, y, theta, end_x=0, end_y=0, parent=None, D = None, L = None, R = None):
-        self.x = x
-        self.y = y
-        self.end_x = (end_x)
-        self.end_y = (end_y)
+    def __init__(self, x, y, theta, end_x=0, end_y=0, parent=None, D = None, L = None, R = None, end_theta = 0):
+        self.x = int(x)
+        self.y = int(y)
+        self.end_x = int(end_x)
+        self.end_y = int(end_y)
         self.parent = parent
         self.theta = int(theta + .5) % 360
+        self.end_theta = int(end_theta + .5) % 360
         if parent:
             self.path_length = parent.path_length + D
             self.L = L
@@ -83,23 +87,20 @@ class Node:
             self.h = 0
 
     def heuristic(self):  # a* heuristic
-        return math.sqrt(math.pow(target.x - self.end_x, 2) + math.pow(target.y - self.end_y, 2)) + self.path_length
+        return math.sqrt(math.pow(target.x - self.end_x, 2) + math.pow(target.y - self.end_y, 2)) + self.path_length / 1.1
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
 
     def __str__(self):
-        return "[" + str(self.x) + ", "+str(self.y) + ", " \
-               + str(self.theta) + ", " + str(self.end_x)+", "+str(self.end_y) + "]"
+        return "[" + str(round_to_n(self.end_x)) + ", " + str(round_to_n(self.end_y)) + ", " \
+               + str(round_to_n(self.end_theta, 10))
+               #+ ", " + str(self.end_x)+", "+str(self.end_y) + "]"
 
     def __lt__(self, other):
         return self.path_length < other.path_length
 
 
-# draws the given node on the board
-def draw_node(node, color=CYAN):
-    pygame.draw.line(board, color, [node.x * SCALE, (HEIGHT - node.y) * SCALE],
-                     [node.end_x * SCALE, (HEIGHT - node.end_y) * SCALE], 1)
 def draw_node_diff(node, color=CYAN):
     plot_curve(node.x, node.y, node.theta, node.L, node.R, color)
 
@@ -108,30 +109,14 @@ def get_neighbors_rigid_diff(node):
     # actions = [20, 22]
     for left in actions:
         for right in actions:
-            if left == right == actions[0]:
+            if right == left == 0:
                 continue
-            Xn, Yn, Tn, D = move_curve(node.end_x, node.end_y, node.theta, left, right)
+            Xn, Yn, Tn, D = move_curve(node.end_x, node.end_y, node.end_theta, left, right)
             Xn = round_to_half(Xn)
             Yn = round_to_half(Yn)
             if point_valid(Xn, Yn, False):
-                neighbors.append(Node(node.end_x, node.end_y, Tn, Xn, Yn, node, D, left, right))
+                neighbors.append(Node(node.end_x, node.end_y, node.end_theta, Xn, Yn, node, D, left, right, Tn))
     return neighbors
-
-# gets ll valid neighbors from a given node
-def get_neighbors_rigid(node):
-    neighbors = []
-    for angle in range(-60, 61, THETA):
-        new_theta = node.theta + angle
-        if new_theta < 0:
-            new_theta = new_theta + 360
-        else:
-            new_theta = new_theta % 360
-        new_x = round_to_half(node.end_x + MAGNITUDE * math.cos(math.radians(new_theta)))
-        new_y = round_to_half(node.end_y + MAGNITUDE * math.sin(math.radians(new_theta)))
-        if point_valid(new_x, new_y, False):
-            neighbors.append(Node(node.end_x, node.end_y, new_theta, new_x, new_y, node))
-    return neighbors
-
 
 # returns a randomly-generated node
 def random_node():
@@ -258,22 +243,6 @@ def point_valid(x, y, talk=True):
     return True
 
 
-# checks to ensure visual and mathematical models of obstacles match
-def sanity_check():
-    node = random_node()
-    for run in range(100000):
-        node = random_node()
-        print(node)
-        if node:
-            draw_node_diff(node)
-            new_nodes = get_neighbors_rigid_diff(node)
-            for j in new_nodes:
-                draw_node(j, RED)
-        pygame.display.update()
-        time.sleep(.5)
-        events = pygame.event.get()
-
-
 # gets single valid point from user
 def get_point_from_user(word):
     valid = False
@@ -304,6 +273,7 @@ def get_initial_conditions(human=True):
         x1, y1 = get_point_from_user("start")
         x2, y2 = get_point_from_user("target")
         theta = int(input("Input starting theta in degrees: ")) % 360
+        get_diff()
     else:
         x1, y1 = random_point()
         x2, y2 = random_point()
@@ -328,7 +298,7 @@ def turtle_a_star():
                 pygame.display.update()
                 pygame.event.get()
 
-        closed[str(next_node)] = True
+        closed[str(next_node)] = 1
 
         nodes_visited.append(next_node)
         if is_close(next_node.end_x, next_node.end_y, target.x, target.y):  # check if done
@@ -401,31 +371,16 @@ def add_points():
         clock.tick(12)
     pygame.display.update()
     if path:
-        print("Path length: ", path[1].path_length)
-
-
-# used for testing get_neighbors_rigid
-def test_n():
-    node = random_node()
-    node.theta = 180
-    pygame.draw.circle(board, CYAN, [node.end_x * SCALE, (HEIGHT - node.end_y) * SCALE], 4 * SCALE)
-    new_nodes = get_neighbors_rigid(node)
-    for node in new_nodes:
-        draw_node(node)
-    pygame.display.update()
+        print("Path length: ", path[-2].path_length)
 
 
 def move_curve(Xi, Yi, Thetai, UL, UR):
-    print(Xi, Yi, Thetai, UL, UR)
     t = 0
-    r = 3.8 / 5
-    L = 35.4 / 5
-    dt = 0.1
     Xn = Xi
     Yn = Yi
     Thetan = 3.14 * Thetai / 180
     D = 0
-    while t < 1:
+    while t < stop_time:
         t = t + dt
         Xs = Xn
         Ys = Yn
@@ -433,51 +388,58 @@ def move_curve(Xi, Yi, Thetai, UL, UR):
         Yn += (0.5 * r * (UL + UR) * math.sin(Thetan) * dt)
         Thetan += (r / L) * (UR - UL) * dt
         D += distance(Xs, Ys, Xn, Yn)
-    Thetan = 180 * (Thetan) / 3.14
+        #pygame.draw.line(board, CYAN, [Xs * SCALE, (HEIGHT - Ys) * SCALE], [Xn * SCALE, (HEIGHT - Yn) * SCALE])
+    Thetan = 180 * Thetan / 3.14
     return Xn, Yn, Thetan, D
 
+
 def plot_curve(Xi, Yi, Thetai, UL, UR, color = CYAN):
-    print(Xi, Yi, Thetai, UL, UR)
     t = 0
-    r = 3.8 / 5
-    L = 35.4 /5
-    dt = 0.1
     Xn = Xi
     Yn = Yi
     Thetan = 3.14 * Thetai / 180
-    while t < 1:
+    while t < stop_time:
         t = t + dt
         Xs = Xn
         Ys = Yn
-        Xn += (0.5*r * (UL + UR) * math.cos(Thetan) * dt)
-        Yn += (0.5*r * (UL + UR) * math.sin(Thetan) * dt)
+        Xn += (0.5 * r * (UL + UR) * math.cos(Thetan) * dt)
+        Yn += (0.5 * r * (UL + UR) * math.sin(Thetan) * dt)
         Thetan += (r / L) * (UR - UL) * dt
         pygame.draw.line(board, color, [Xs * SCALE, (HEIGHT - Ys) * SCALE], [Xn * SCALE, (HEIGHT - Yn) * SCALE])
     return Xn, Yn
 
 
-def node_check(node):
-    n = get_neighbors_rigid_diff(node)
-    print("------")
-    for j in n:
-        draw_node_diff(j)
-        x, y = plot_curve(j.x, j.y, j.theta, j.L, j.R, MAGENTA)
-        pygame.draw.circle(board, BLACK, [j.end_x * SCALE, (HEIGHT - j.end_y) * SCALE], 2)
-        pygame.draw.circle(board, MAGENTA, [x * SCALE, (HEIGHT - y) * SCALE], 2)
+def node_check():
+    n = Node(50, 50, 0)
+    Xn, Yn = plot_curve(n.x, n.y, n.theta, 50, 60, RED)
+    pygame.draw.circle(board, RED, [Xn, HEIGHT - Yn], 2)
+    #Xn, Yn, a, b = move_curve(n.x, n.y, n.theta, 50, 60)
+    #pygame.draw.circle(board, CYAN, [Xn, HEIGHT - Yn], 2)
     pygame.display.update()
+    for i in range(501):
+        time.sleep(.1)
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                raise SystemExit
+
+
+def get_diff():
+    print("This system works best with values in the range of 30-60")
+    print("The values should not differ more than 5, and work best with a difference of 2 or 3")
+    actions[0] = int(input("Enter the smaller value: "))
+    actions[1] = int(input("Enter the larger value: "))
+
 
 if __name__ == "__main__":
     mode = 1
-    start, target= get_initial_conditions(False)
+    start, target = get_initial_conditions(False)
     print("Finding path...")
     real_time = True
 
     if real_time:
         make_board()
         add_points()
-
-    node_check(start)
-    time.sleep(2)
 
     if turtle_a_star():
         print("Path found")
