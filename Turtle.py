@@ -29,7 +29,7 @@ CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 YELLOW = (255, 255, 0)
 
-BOT_RADIUS = 10
+BOT_RADIUS = 10.5  # 105mm
 OBSTACLE_CLEARANCE = 5
 CLEARANCE = BOT_RADIUS + OBSTACLE_CLEARANCE
 THRESHOLD = 12
@@ -45,22 +45,14 @@ L = 0.354
 dt = 0.1
 stop_time = 6
 
+
 # distance between two points
 def distance(x1, y1, x2, y2):
     return math.sqrt(pow((x2-x1), 2)+pow((y2-y1), 2))
 
-def round_to_n(num, n = 4):
-    return n * round(num / n)
 
-# round to nearest .5
-def round_to_half(num):
-    decimal = num - int(num)
-    if decimal >= .75:
-        return int(num) + 1
-    elif decimal <= .25:
-        return int(num)
-    else:
-        return int(num) + .5
+def round_to_n(num, n=4):
+    return n * round(num / n)
 
 
 # class to keep track of each place visited
@@ -104,6 +96,7 @@ class Node:
 def draw_node_diff(node, color=CYAN):
     plot_curve(node.x, node.y, node.theta, node.L, node.R, color)
 
+
 def get_neighbors_rigid_diff(node):
     neighbors = []
     # actions = [20, 22]
@@ -112,11 +105,10 @@ def get_neighbors_rigid_diff(node):
             if right == left == 0:
                 continue
             Xn, Yn, Tn, D = move_curve(node.end_x, node.end_y, node.end_theta, left, right)
-            Xn = round_to_half(Xn)
-            Yn = round_to_half(Yn)
             if point_valid(Xn, Yn, False):
                 neighbors.append(Node(node.end_x, node.end_y, node.end_theta, Xn, Yn, node, D, left, right, Tn))
     return neighbors
+
 
 # returns a randomly-generated node
 def random_node():
@@ -160,12 +152,6 @@ def make_board():
     pygame.draw.polygon(board, BLACK,  # bottom
                         [(200 * SCALE, (HEIGHT - 240) * SCALE), (230 * SCALE, (HEIGHT - 240) * SCALE),
                          (230 * SCALE, (HEIGHT - 230) * SCALE), (200 * SCALE, (HEIGHT - 230) * SCALE)])
-
-    # Polygon ---- whats the error allowed? lot of rounding and re-rounding
-    '''pygame.draw.polygon(board, BLACK,  # why is this so ugly
-                        [(354 * SCALE, (HEIGHT - 138) * SCALE), (380 * SCALE, (HEIGHT - 170) * SCALE),
-                         (380 * SCALE, (HEIGHT - 115) * SCALE), (328 * SCALE, (HEIGHT - 63) * SCALE),
-                         (286 * SCALE, (HEIGHT - 105) * SCALE), (325 * SCALE, (HEIGHT - 143) * SCALE)])'''
 
 
 # check if point in circle
@@ -269,16 +255,19 @@ def random_point():
 
 # gets valid start and target point
 def get_initial_conditions(human=True):
+    global OBSTACLE_CLEARANCE
     if human:
         x1, y1 = get_point_from_user("start")
         x2, y2 = get_point_from_user("target")
         theta = int(input("Input starting theta in degrees: ")) % 360
         get_diff()
+        OBSTACLE_CLEARANCE = int(input("Enter clearance for obstacles"))
     else:
         x1, y1 = random_point()
         x2, y2 = random_point()
         theta = random.randint(0, 11) * 30  # 30, 60, 90, etc
     return Node(x1, y1, theta, x1, y1), Node(x2, y2, 0, x2, y2)
+
 
 # a* search
 def turtle_a_star():
@@ -292,7 +281,6 @@ def turtle_a_star():
         next_node = open_list.get()[1]
         if real_time:  # plot in real time
             itt = itt + 1
-            # draw_node(next_node)
             draw_node_diff(next_node, CYAN)
             if itt % 50 == 0:
                 pygame.display.update()
@@ -306,7 +294,6 @@ def turtle_a_star():
             found_path = True
             return True
 
-        # neighbors = get_neighbors_rigid(next_node)
         neighbors = get_neighbors_rigid_diff(next_node)
 
         for neighbor in neighbors:  # get neighbors and check if they have been checked yet
@@ -331,7 +318,6 @@ def back_track():
 # adds all visited nodes, the path, start and end points to board
 def add_points():
     print("Visited: ", len(nodes_visited))
-
     draw_point_with_threshold(start, GREEN)
     draw_point_with_threshold(target, RED)
     pygame.display.update()
@@ -388,7 +374,6 @@ def move_curve(Xi, Yi, Thetai, UL, UR):
         Yn += (0.5 * r * (UL + UR) * math.sin(Thetan) * dt)
         Thetan += (r / L) * (UR - UL) * dt
         D += distance(Xs, Ys, Xn, Yn)
-        #pygame.draw.line(board, CYAN, [Xs * SCALE, (HEIGHT - Ys) * SCALE], [Xn * SCALE, (HEIGHT - Yn) * SCALE])
     Thetan = 180 * Thetan / 3.14
     return Xn, Yn, Thetan, D
 
@@ -413,8 +398,6 @@ def node_check():
     n = Node(50, 50, 0)
     Xn, Yn = plot_curve(n.x, n.y, n.theta, 50, 60, RED)
     pygame.draw.circle(board, RED, [Xn, HEIGHT - Yn], 2)
-    #Xn, Yn, a, b = move_curve(n.x, n.y, n.theta, 50, 60)
-    #pygame.draw.circle(board, CYAN, [Xn, HEIGHT - Yn], 2)
     pygame.display.update()
     for i in range(501):
         time.sleep(.1)
@@ -435,7 +418,7 @@ if __name__ == "__main__":
     mode = 1
     start, target = get_initial_conditions(False)
     print("Finding path...")
-    real_time = True
+    real_time = False
 
     if real_time:
         make_board()
@@ -459,3 +442,4 @@ if __name__ == "__main__":
         for event in events:
             if event.type == pygame.QUIT:
                 raise SystemExit
+    raise SystemExit
