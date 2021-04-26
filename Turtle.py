@@ -12,8 +12,9 @@ import pygame
 import time
 from random import randint
 
-HEIGHT = 300
-WIDTH = 400
+GRAIN = 30
+HEIGHT = 10 * GRAIN
+WIDTH = 10 * GRAIN
 SCALE = 2
 
 board = None
@@ -29,12 +30,12 @@ CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 YELLOW = (255, 255, 0)
 
-BOT_RADIUS = 10.5  # 105mm
+BOT_RADIUS = 1.05  # 105mm
 OBSTACLE_CLEARANCE = 5
 CLEARANCE = BOT_RADIUS + OBSTACLE_CLEARANCE
-THRESHOLD = 12
+THRESHOLD = 6
 nodes_visited = []
-actions = [55, 57, 0]
+actions = [40, 42, 0]
 path = []
 SQRT2 = math.sqrt(2)
 nodes = None
@@ -44,6 +45,7 @@ r = 0.038
 L = 0.354
 dt = 0.1
 stop_time = 6
+SCALAR = GRAIN * SCALE
 
 
 # distance between two points
@@ -51,13 +53,13 @@ def distance(x1, y1, x2, y2):
     return math.sqrt(pow((x2-x1), 2)+pow((y2-y1), 2))
 
 
-def round_to_n(num, n=4):
+def round_to_n(num, n=3):
     return n * round(num / n)
 
 
 # class to keep track of each place visited
 class Node:
-    def __init__(self, x, y, theta, end_x=0, end_y=0, parent=None, D = None, L = None, R = None, end_theta = 0):
+    def __init__(self, x, y, theta, end_x=0, end_y=0, parent=None, dist=None, ul=None, ur=None, end_theta=0):
         self.x = int(x)
         self.y = int(y)
         self.end_x = int(end_x)
@@ -66,9 +68,9 @@ class Node:
         self.theta = int(theta + .5) % 360
         self.end_theta = int(end_theta + .5) % 360
         if parent:
-            self.path_length = parent.path_length + D
-            self.L = L
-            self.R = R
+            self.path_length = parent.path_length + dist
+            self.L = ul
+            self.R = ur
         else:
             self.path_length = 0
             self.L = 0
@@ -79,7 +81,7 @@ class Node:
             self.h = 0
 
     def heuristic(self):  # a* heuristic
-        return math.sqrt(math.pow(target.x - self.end_x, 2) + math.pow(target.y - self.end_y, 2)) + self.path_length / 1.1
+        return math.sqrt(math.pow(target.x - self.end_x, 2) + math.pow(target.y - self.end_y, 2)) + self.path_length / 1
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
@@ -87,7 +89,6 @@ class Node:
     def __str__(self):
         return "[" + str(round_to_n(self.end_x)) + ", " + str(round_to_n(self.end_y)) + ", " \
                + str(round_to_n(self.end_theta, 10))
-               #+ ", " + str(self.end_x)+", "+str(self.end_y) + "]"
 
     def __lt__(self, other):
         return self.path_length < other.path_length
@@ -99,14 +100,13 @@ def draw_node_diff(node, color=CYAN):
 
 def get_neighbors_rigid_diff(node):
     neighbors = []
-    # actions = [20, 22]
     for left in actions:
         for right in actions:
             if right == left == 0:
                 continue
-            Xn, Yn, Tn, D = move_curve(node.end_x, node.end_y, node.end_theta, left, right)
-            if point_valid(Xn, Yn, False):
-                neighbors.append(Node(node.end_x, node.end_y, node.end_theta, Xn, Yn, node, D, left, right, Tn))
+            xn, yn, tn, dist = move_curve(node.end_x, node.end_y, node.end_theta, left, right)
+            if point_valid(xn, yn, False):
+                neighbors.append(Node(node.end_x, node.end_y, node.end_theta, xn, yn, node, dist, left, right, tn))
     return neighbors
 
 
@@ -134,76 +134,52 @@ def make_board():
     board.fill(WHITE)
 
     # easy
-    pygame.draw.circle(board, BLACK, [90 * SCALE, (HEIGHT - 70) * SCALE], 35 * SCALE)
-    pygame.draw.ellipse(board, BLACK, [186 * SCALE, (HEIGHT - 175) * SCALE, 120 * SCALE, 60 * SCALE], 0 * SCALE)
-
-    # Line Segment
-    pygame.draw.polygon(board, BLACK,
-                        [(48 * SCALE, (HEIGHT - 108) * SCALE), (37 * SCALE, (HEIGHT - 124) * SCALE),
-                         (159 * SCALE, (HEIGHT - 210) * SCALE), (170 * SCALE, (HEIGHT - 194) * SCALE)])
-
-    # C shape
-    pygame.draw.polygon(board, BLACK,  # back
-                        [(200 * SCALE, (HEIGHT - 270) * SCALE), (210 * SCALE, (HEIGHT - 270) * SCALE),
-                         (210 * SCALE, (HEIGHT - 240) * SCALE), (200 * SCALE, (HEIGHT - 240) * SCALE)])
-    pygame.draw.polygon(board, BLACK,  # top
-                        [(200 * SCALE, (HEIGHT - 280) * SCALE), (230 * SCALE, (HEIGHT - 280) * SCALE),
-                         (230 * SCALE, (HEIGHT - 270) * SCALE), (200 * SCALE, (HEIGHT - 270) * SCALE)])
-    pygame.draw.polygon(board, BLACK,  # bottom
-                        [(200 * SCALE, (HEIGHT - 240) * SCALE), (230 * SCALE, (HEIGHT - 240) * SCALE),
-                         (230 * SCALE, (HEIGHT - 230) * SCALE), (200 * SCALE, (HEIGHT - 230) * SCALE)])
+    pygame.draw.circle(board, BLACK, [2 * SCALAR, (HEIGHT - 2 * GRAIN) * SCALE], 1 * SCALAR)
+    pygame.draw.circle(board, BLACK, [2 * SCALAR, (HEIGHT - 8 * GRAIN) * SCALE], 1 * SCALAR)
+    pygame.draw.rect(board, BLACK, pygame.Rect(
+        .25 * SCALAR, (HEIGHT - 5.75 * GRAIN) * SCALE, 1.5 * SCALAR, 1.5 * SCALAR))
+    pygame.draw.rect(board, BLACK, pygame.Rect(
+        3.75 * SCALAR, (HEIGHT - 5.75 * GRAIN) * SCALE, 2.5 * SCALAR, 1.5 * SCALAR))
+    pygame.draw.rect(board, BLACK, pygame.Rect(
+        7.25 * SCALAR, (HEIGHT - 4 * GRAIN) * SCALE, 1.5 * SCALAR, 2 * SCALAR))
 
 
-# check if point in circle
-def in_circle(x, y):
-    if math.pow(x - 90, 2) + math.pow(y - 70, 2) >= math.pow(35 + CLEARANCE, 2):
+def in_circle(x, y):  # check if point in lower circle
+    if math.pow(x - 2 * GRAIN, 2) + math.pow(y - (HEIGHT - 2 * GRAIN), 2) >= math.pow(1 * GRAIN + CLEARANCE, 2):
         return False
     return True
 
 
-# check if point in ellipse
-def in_ellipse(x, y):
-    center_x = 246
-    center_y = 146
-    horizontal_axis = 60 + CLEARANCE
-    vertical_axis = 30 + CLEARANCE
-    if ((math.pow(x - center_x, 2) / math.pow(horizontal_axis, 2)) +
-            (math.pow(y - center_y, 2) / math.pow(vertical_axis, 2))) <= 1:
+def in_circle_2(x, y):  # check if point in upper circle
+    if math.pow(x - 2 * GRAIN, 2) + math.pow(y - (HEIGHT - 8 * GRAIN) , 2) >= math.pow(1 * GRAIN + CLEARANCE, 2):
+        return False
+    return True
+
+
+def in_rect(x, y):    # check if point in rectangle
+    if .25 * GRAIN - CLEARANCE <= x <= 1.75 * GRAIN + CLEARANCE and \
+            5.75 * GRAIN + CLEARANCE >= y >= 4.25 * GRAIN - CLEARANCE:
         return True
     return False
 
 
-# check if point in C-shape
-def in_c_shape(x, y):
-    if (x >= 200 - CLEARANCE and x <= 210 + CLEARANCE and y <= 280 + CLEARANCE and y >= 230 - CLEARANCE) or \
-       (x >= 210 - CLEARANCE and x <= 230 + CLEARANCE and y >= 270 - CLEARANCE and y <= 280 + CLEARANCE) or \
-       (y >= 230 - CLEARANCE and y <= 240 + CLEARANCE and x >= 210 - CLEARANCE and x <= 230 + CLEARANCE):
+def in_rect_2(x, y):
+    if 3.75 * GRAIN - CLEARANCE <= x <= 6.25 * GRAIN + CLEARANCE and \
+            5.75 * GRAIN + CLEARANCE >= y >= 4.25 * GRAIN - CLEARANCE:
         return True
     return False
 
 
-# check if point in weird polygon
-def in_poly(x, y):
-    if ((y - 1 * x + 181.6 - CLEARANCE) < 0 and (y + 0.3 * x - 239.9 - CLEARANCE) < 0
-            and (y + 249.2 * x - 95054 - CLEARANCE) < 0 and (y - x + 265 + CLEARANCE) > 0
-            and (y + x - 389.3 + CLEARANCE) > 0) or ((y - 1.13 * x + 260.75 - CLEARANCE) < 0
-            and (y + 249.2 * x - 95054 - CLEARANCE) < 0 and (y + .3 * x - 240.6 + CLEARANCE) > 0):
-        return True
-    return False
-
-
-# check if point in rotated rectangle
-def in_line_segment(x, y):
-    if (y + 1.4 * x - 176.5 + CLEARANCE) > 0 and (y - 0.7 * x - 74.4 + CLEARANCE) > 0 \
-            and (y - 0.7 * x - 98.8 - CLEARANCE) < 0 and (y + 1.4 * x - 438.1 - CLEARANCE) < 0:
+def in_rect_3(x, y):
+    if 7.25 * GRAIN - CLEARANCE <= x <= 8.75 * GRAIN + CLEARANCE and \
+            4 * GRAIN + CLEARANCE >= y >= 2 * GRAIN - CLEARANCE:
         return True
     return False
 
 
 # check if point is in any obstacle
 def in_obstacle(x, y):
-    if in_circle(x, y) or in_ellipse(x, y) or in_c_shape(x, y) or \
-            in_line_segment(x, y):  # or in_poly(x, y):
+    if in_circle(x, y) or in_circle_2(x, y) or in_rect(x, y) or in_rect_2(x, y) or in_rect_3(x, y):
         return True
     return False
 
@@ -333,7 +309,6 @@ def add_points():
         rate = 200
 
     for point in nodes_visited:
-        # draw_node(point, CYAN)
         draw_node_diff(point)
         if itt % 10 == 0:
             draw_point_with_threshold(start)
@@ -350,7 +325,6 @@ def add_points():
     print("Path: ", len(path))
 
     for point in path:
-        # draw_node(point, MAGENTA)
         draw_node_diff(point, MAGENTA)
         pygame.display.update()
         pygame.event.get()
@@ -360,51 +334,40 @@ def add_points():
         print("Path length: ", path[-2].path_length)
 
 
-def move_curve(Xi, Yi, Thetai, UL, UR):
+def move_curve(x_i, y_i, theta_i, ul, ur):
     t = 0
-    Xn = Xi
-    Yn = Yi
-    Thetan = 3.14 * Thetai / 180
-    D = 0
+    x_n = x_i
+    y_n = y_i
+    theta_n = 3.14 * theta_i / 180
+    dist = 0
     while t < stop_time:
         t = t + dt
-        Xs = Xn
-        Ys = Yn
-        Xn += (0.5 * r * (UL + UR) * math.cos(Thetan) * dt)
-        Yn += (0.5 * r * (UL + UR) * math.sin(Thetan) * dt)
-        Thetan += (r / L) * (UR - UL) * dt
-        D += distance(Xs, Ys, Xn, Yn)
-    Thetan = 180 * Thetan / 3.14
-    return Xn, Yn, Thetan, D
+        x_s = x_n
+        y_s = y_n
+        x_n += (0.5 * r * (ul + ur) * math.cos(theta_n) * dt)
+        y_n += (0.5 * r * (ul + ur) * math.sin(theta_n) * dt)
+        theta_n += (r / L) * (ur - ul) * dt
+        dist += distance(x_s, y_s, x_n, y_n)
+    theta_n = 180 * theta_n / 3.14
+    return x_n, y_n, theta_n, dist
 
 
-def plot_curve(Xi, Yi, Thetai, UL, UR, color = CYAN):
+def plot_curve(x_i, y_i, theta_i, ul, ur, color = CYAN):
     t = 0
-    Xn = Xi
-    Yn = Yi
-    Thetan = 3.14 * Thetai / 180
+    x_n = x_i
+    y_n = y_i
+    theta_n = 3.14 * theta_i / 180
+    dist = 0
     while t < stop_time:
         t = t + dt
-        Xs = Xn
-        Ys = Yn
-        Xn += (0.5 * r * (UL + UR) * math.cos(Thetan) * dt)
-        Yn += (0.5 * r * (UL + UR) * math.sin(Thetan) * dt)
-        Thetan += (r / L) * (UR - UL) * dt
-        pygame.draw.line(board, color, [Xs * SCALE, (HEIGHT - Ys) * SCALE], [Xn * SCALE, (HEIGHT - Yn) * SCALE])
-    return Xn, Yn
-
-
-def node_check():
-    n = Node(50, 50, 0)
-    Xn, Yn = plot_curve(n.x, n.y, n.theta, 50, 60, RED)
-    pygame.draw.circle(board, RED, [Xn, HEIGHT - Yn], 2)
-    pygame.display.update()
-    for i in range(501):
-        time.sleep(.1)
-        events = pygame.event.get()
-        for event in events:
-            if event.type == pygame.QUIT:
-                raise SystemExit
+        x_s = x_n
+        y_s = y_n
+        x_n += (0.5 * r * (ul + ur) * math.cos(theta_n) * dt)
+        y_n += (0.5 * r * (ul + ur) * math.sin(theta_n) * dt)
+        theta_n += (r / L) * (ur - ul) * dt
+        dist += distance(x_s, y_s, x_n, y_n)
+        pygame.draw.line(board, color, [x_s * SCALE, (HEIGHT - y_s) * SCALE], [x_n * SCALE, (HEIGHT - y_n) * SCALE])
+    return
 
 
 def get_diff():
@@ -414,11 +377,23 @@ def get_diff():
     actions[1] = int(input("Enter the larger value: "))
 
 
+def sanity_check():
+    for i in range(100000):
+        x = randint(0, WIDTH)
+        y = randint(0, HEIGHT)
+        if point_valid(x, y):
+            pygame.draw.circle(board, RED, [x * SCALE, (HEIGHT - y) * SCALE], 1 * SCALE)
+        else:
+            pygame.draw.circle(board, GREEN, [x * SCALE, (HEIGHT - y) * SCALE], 1 * SCALE)
+        pygame.display.update()
+        pygame.event.get()
+
+
 if __name__ == "__main__":
     mode = 1
-    start, target = get_initial_conditions(False)
+    start, target = get_initial_conditions(True)
     print("Finding path...")
-    real_time = False
+    real_time = True
 
     if real_time:
         make_board()
