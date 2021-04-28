@@ -368,7 +368,7 @@ if __name__ == "__main__":
     time.sleep(2)
     rospy.loginfo("Beep-Boop, here we go again")
     start_time = time.time()
-    rospy.loginfo("I've got em in my sights! Distance to goal: " + str(goal))
+    rospy.loginfo("I've got em in my sights!")
     rospy.loginfo(get_odom_data())
 
     #tmp = Node(0, 0, 0, 7.7, 26)
